@@ -1,0 +1,89 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "DHT.h"
+
+// WiFi credentials
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
+
+// ThingSpeak
+const String apiKey = "XF7HQ89UO6FZEDGT";
+const String server = "http://api.thingspeak.com/update";
+const int channelID = 3064697;
+
+// DHT Sensor
+#define DHTPIN 4
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
+// Ultrasonic Sensor
+#define TRIG_PIN 5
+#define ECHO_PIN 18
+// Gas Sensor (Analog)
+#define GAS_SENSOR_PIN 34
+// Digital LDR
+#define LDR_PIN 14
+// PIR Motion Sensor
+#define PIR_PIN 27
+
+void setup() {
+ Serial.begin(115200);
+ dht.begin();
+ pinMode(TRIG_PIN, OUTPUT);
+ pinMode(ECHO_PIN, INPUT);
+ pinMode(LDR_PIN, INPUT);
+ pinMode(PIR_PIN, INPUT);
+ // Connect to WiFi
+ WiFi.begin(ssid, password);
+ Serial.print("Connecting to WiFi");
+ while (WiFi.status() != WL_CONNECTED) {
+ delay(500);
+ Serial.print(".");
+ }
+ Serial.println("\nWiFi Connected");
+}
+
+void loop() {
+ // Read DHT
+ float temp = dht.readTemperature();
+ float humidity = dht.readHumidity();
+ // Ultrasonic distance
+ digitalWrite(TRIG_PIN, LOW);
+ delayMicroseconds(2);
+ digitalWrite(TRIG_PIN, HIGH);
+ delayMicroseconds(10);
+ digitalWrite(TRIG_PIN, LOW);
+ float duration = pulseIn(ECHO_PIN, HIGH);
+ float distance = duration * 0.034 / 2;
+ // Gas sensor reading
+ int gasValue = analogRead(GAS_SENSOR_PIN);
+ // LDR
+ int ldrStatus = digitalRead(LDR_PIN);
+ // PIR
+ int motionDetected = digitalRead(PIR_PIN);
+ // Log to serial
+ Serial.println("Sending to ThingSpeak...");
+ Serial.println("Temperature: " + String(temp));
+ Serial.println("Humidity: " + String(humidity));
+ Serial.println("Distance: " + String(distance));
+ Serial.println("Gas: " + String(gasValue));
+ Serial.println("LDR: " + String(ldrStatus));
+ Serial.println("Motion: " + String(motionDetected));
+ // Send data to ThingSpeak
+ if (WiFi.status() == WL_CONNECTED) {
+ HTTPClient http;
+ String url = server + "?api_key=" + apiKey +
+ "&field1=" + String(temp) +
+ "&field2=" + String(humidity) +
+ "&field3=" + String(distance) +
+ "&field4=" + String(gasValue) +
+ "&field5=" + String(ldrStatus) +
+ "&field6=" + String(motionDetected);
+ http.begin(url);
+ int httpResponseCode = http.GET();
+ Serial.println("Response: " + String(httpResponseCode));
+ http.end();
+ } else {
+ Serial.println("WiFi Disconnected");
+ }
+ delay(15000); // 15 seconds delay as per ThingSpeak limit
+}
